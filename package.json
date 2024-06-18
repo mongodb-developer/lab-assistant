@@ -1,0 +1,26 @@
+{
+  "dependencies": {
+    "ai": "^3.1.35",
+    "axios": "^1.7.2",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mongodb": "^6.7.0",
+    "openai": "^4.51.0",
+    "react-markdown": "^9.0.1",
+    "remark-gfm": "^4.0.0"
+  },
+  "scripts": {
+    "start": "concurrently \"npm run start:client\" \"npm run start:server\"",
+    "start:client": "npm run --prefix client start",
+    "start:server": "node server/server.js",
+    "install:all": "npm install && npm install --prefix client",
+    "test": "concurrently \"npm run test:client\" \"npm run test:server\"",
+    "test:client": "npm test --prefix client",
+    "test:server": "echo \"No server tests specified\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

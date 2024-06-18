@@ -1,0 +1,20 @@
+.chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 80vh; /* Full viewport height */
+    box-sizing: border-box;
+    padding: 0; /* Ensure no extra padding */
+    margin: 0; /* Ensure no extra margin */
+    overflow: scroll; /* Prevent overflow */
+  }
+  
+  .chat-container > div {
+    width: 100%;
+    max-width: 800px; /* Maximum width for the chat container */
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    background-color: #fff; /* White background for the chat area */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Light shadow effect */
+    overflow: scroll;
+  }
+  
