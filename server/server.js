@@ -12,15 +12,29 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const debugMode = process.env.DEBUG_MODE === 'true';
 
 // Utility function to log messages to a file
 function logToFile(message) {
   const logPath = path.join(__dirname, 'chatbot.log');
   fs.appendFileSync(logPath, `${new Date().toISOString()} - ${message}\n`);
 }
+
+// Verify that all necessary environment variables are loaded
+const requiredEnvVars = ['MONGODB_URI', 'MONGODB_DB', 'MONGODB_COLLECTION', 'OPENAI_API_KEY'];
+requiredEnvVars.forEach((varName) => {
+  if (!process.env[varName]) {
+    console.error(`Error: Environment variable ${varName} is not set`);
+    process.exit(1);
+  }
+});
+
+// Logging environment variables for debugging
+console.log('MONGODB_URI:', process.env.MONGODB_URI);
+console.log('MONGODB_DB:', process.env.MONGODB_DB);
+console.log('MONGODB_COLLECTION:', process.env.MONGODB_COLLECTION);
+console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY);
 
 async function generateEmbeddings(text) {
   try {
@@ -41,26 +55,72 @@ async function findRelevantDocuments(query) {
   const queryEmbedding = await generateEmbeddings(query);
   logToFile(`Generated query embedding: ${queryEmbedding}`);
 
-  const client = new MongoClient(process.env.MONGODB_URL, { useNewUrlParser: true, useUnifiedTopology: true });
+  console.log('Connecting to MongoDB with URI:', process.env.MONGODB_URI);
+  const client = new MongoClient(process.env.MONGODB_URI);
   await client.connect();
-  const db = client.db('chatbot');
-  const collection = db.collection('documents');
+  const db = client.db(process.env.MONGODB_DB);
+  const collection = db.collection(process.env.MONGODB_COLLECTION);
 
   try {
-    const documents = await collection.aggregate([
+    // Search in question_embedding
+    const questionResults = await collection.aggregate([
       {
-        $vectorSearch: {
-          index: 'default',
-          path: 'embedding',
-          queryVector: queryEmbedding,
-          numCandidates: 10,
-          limit: 10
+        '$vectorSearch': {
+          'index': 'question_index',
+          'path': 'question_embedding',
+          'queryVector': queryEmbedding,
+          'numCandidates': 10,
+          'limit': 2
+        }
+      },
+      {
+        '$project': {
+          '_id': 0,
+          'question': 1,
+          'answer': 1,
+          'score': {
+            '$meta': 'vectorSearchScore'
+          }
         }
       }
     ]).toArray();
-    
-    logToFile(`Found ${documents.length} relevant documents`);
-    return documents;
+
+    // Search in answer_embedding
+    const answerResults = await collection.aggregate([
+      {
+        '$vectorSearch': {
+          'index': 'answer_index',
+          'path': 'answer_embedding',
+          'queryVector': queryEmbedding,
+          'numCandidates': 10,
+          'limit': 2
+        }
+      },
+      {
+        '$project': {
+          '_id': 0,
+          'question': 1,
+          'answer': 1,
+          'score': {
+            '$meta': 'vectorSearchScore'
+          }
+        }
+      }
+    ]).toArray();
+
+    // Combine results and handle duplicates
+    const combinedResults = [...questionResults, ...answerResults];
+    const uniqueResults = combinedResults.reduce((acc, current) => {
+      const x = acc.find(item => item.question === current.question && item.answer === current.answer);
+      if (!x) {
+        return acc.concat([current]);
+      } else {
+        return acc;
+      }
+    }, []);
+
+    logToFile(`Found ${uniqueResults.length} relevant documents`);
+    return { uniqueResults, queryEmbedding };
   } catch (error) {
     logToFile(`Error finding documents: ${error.message}`);
     throw error;
@@ -93,9 +153,9 @@ function getSummarizedContext(documents, maxTokens = 7000) {
   let tokens = 0;
 
   for (const doc of documents) {
-    const contentTokens = doc.content.split(' ').length;
+    const contentTokens = doc.answer.split(' ').length;
     if (tokens + contentTokens <= maxTokens) {
-      context += doc.content + '\n\n';
+      context += `**Answer**: ${doc.answer} (Score: ${doc.score})\n\n`;
       tokens += contentTokens;
     } else {
       break;
@@ -105,6 +165,43 @@ function getSummarizedContext(documents, maxTokens = 7000) {
   return context;
 }
 
+app.post('/api/chat', async (req, res) => {
+  const { query } = req.body;
+  let queryEmbedding = null;
+  try {
+    const { uniqueResults, queryEmbedding: embedding } = await findRelevantDocuments(query);
+    queryEmbedding = embedding;
+    const context = getSummarizedContext(uniqueResults);
+    logToFile(`Context for chat completion: ${context.substring(0, 500)}...`);
+
+    // If relevant documents are found, use the context to answer the question
+    let reply = context;
+
+    // If no relevant documents are found, return a default message
+    if (!context || context.trim().length === 0) {
+      reply = "I'm sorry, I don't know the answer to that question. Please try to rephrase it. Refer to the below information to see if it helps.";
+    }
+
+    if (debugMode) {
+      res.json({ 
+        reply,
+        debugInfo: {
+          query,
+          queryEmbedding,
+          relevantDocuments: uniqueResults,
+          context
+        }
+      });
+    } else {
+      res.json({ reply });
+    }
+  } catch (error) {
+    console.error('Error processing chat:', error);
+    logToFile(`Error processing chat: ${error.message}`);
+    res.status(500).json({ error: 'Error processing chat' });
+  }
+});
+
 // Endpoint to serve the sidebar
 app.get('/api/sidebar', async (req, res) => {
   try {
@@ -113,28 +210,6 @@ app.get('/api/sidebar', async (req, res) => {
   } catch (error) {
     console.error('Error fetching sidebar:', error.message);
     res.status(500).json({ error: 'Failed to load sidebar configuration' });
-  }
-});
-
-app.post('/api/chat', async (req, res) => {
-  const { query } = req.body;
-  try {
-    const relevantDocuments = await findRelevantDocuments(query);
-    const context = getSummarizedContext(relevantDocuments);
-    logToFile(`Context for chat completion: ${context.substring(0, 500)}...`);
-    
-    const messages = [
-      { role: 'system', content: 'You are a helpful assistant working as part of delivery of a MongoDB Developer Days workshop. Attendees will ask questions about the workshop content and about getting the project working. You should search for relevant answers in the local database.' },
-      { role: 'user', content: query },
-      { role: 'system', content: context }
-    ];
-    
-    const reply = await getChatCompletion(messages);
-    res.json({ reply });
-  } catch (error) {
-    console.error('Error processing chat:', error);
-    logToFile(`Error processing chat: ${error.message}`);
-    res.status(500).json({ error: 'Error processing chat' });
   }
 });
 

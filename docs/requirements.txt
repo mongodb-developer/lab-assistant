@@ -1,0 +1,7 @@
+pyyaml
+markdown
+pymongo 
+dnspython 
+python-dotenv 
+beautifulsoup4
+openai
