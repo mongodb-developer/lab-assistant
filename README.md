@@ -71,7 +71,8 @@ When `DEBUG_MODE` is set to `true`, additional debug information will be provide
 
 ## Directory Structure
 
-`├── LICENSE
+```
+├── LICENSE
 ├── README.md
 ├── client
 │ ├── Chatbot.css
@@ -122,7 +123,8 @@ When `DEBUG_MODE` is set to `true`, additional debug information will be provide
 ├── chat.js
 ├── helloWorld.js
 ├── index.js
-└── index.module.css`
+└── index.module.css
+```
 
 ## Contributing
 
