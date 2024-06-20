@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import LogViewer from './LogViewer'; // Correct import
 import './Chatbot.css';
 
 const Chatbot = () => {
@@ -24,7 +25,6 @@ const Chatbot = () => {
     setInputValue('');
 
     try {
-      console.log("Error Directory:",`${process.env.REACT_APP_SERVER_URL}`);         
       const response = await axios.post(`${process.env.REACT_APP_SERVER_URL}/api/chat`, { query: inputValue });
       const reply = response.data.reply;
       setMessages([...newMessages, { text: reply, isUser: false }]);
@@ -77,6 +77,7 @@ const Chatbot = () => {
           />
           <button onClick={handleSendMessage}>Send</button>
         </div>
+        <LogViewer /> {/* Add LogViewer component here */}
       </div>
     </div>
   );

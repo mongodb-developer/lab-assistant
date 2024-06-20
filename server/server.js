@@ -51,6 +51,8 @@ async function generateEmbeddings(text) {
   }
 }
 
+const SCORE_THRESHOLD = 0.8; // Define your threshold here
+
 async function findRelevantDocuments(query) {
   const queryEmbedding = await generateEmbeddings(query);
   logToFile(`Generated query embedding: ${queryEmbedding}`);
@@ -70,7 +72,7 @@ async function findRelevantDocuments(query) {
           'path': 'question_embedding',
           'queryVector': queryEmbedding,
           'numCandidates': 10,
-          'limit': 2
+          'limit': 10
         }
       },
       {
@@ -93,7 +95,7 @@ async function findRelevantDocuments(query) {
           'path': 'answer_embedding',
           'queryVector': queryEmbedding,
           'numCandidates': 10,
-          'limit': 2
+          'limit': 10
         }
       },
       {
@@ -108,19 +110,14 @@ async function findRelevantDocuments(query) {
       }
     ]).toArray();
 
-    // Combine results and handle duplicates
+    // Combine results and filter based on score threshold
     const combinedResults = [...questionResults, ...answerResults];
-    const uniqueResults = combinedResults.reduce((acc, current) => {
-      const x = acc.find(item => item.question === current.question && item.answer === current.answer);
-      if (!x) {
-        return acc.concat([current]);
-      } else {
-        return acc;
-      }
-    }, []);
+    const filteredResults = combinedResults.filter(result => result.score >= SCORE_THRESHOLD);
 
-    logToFile(`Found ${uniqueResults.length} relevant documents`);
-    return { uniqueResults, queryEmbedding };
+    logToFile(`Found ${filteredResults.length} relevant documents after filtering with threshold ${SCORE_THRESHOLD}`);
+    filteredResults.forEach(result => logToFile(`Document: ${result.question}, Score: ${result.score}`));
+
+    return { filteredResults, queryEmbedding };
   } catch (error) {
     logToFile(`Error finding documents: ${error.message}`);
     throw error;
@@ -128,6 +125,7 @@ async function findRelevantDocuments(query) {
     await client.close();
   }
 }
+
 
 async function getChatCompletion(messages) {
   try {
@@ -155,7 +153,7 @@ function getSummarizedContext(documents, maxTokens = 7000) {
   for (const doc of documents) {
     const contentTokens = doc.answer.split(' ').length;
     if (tokens + contentTokens <= maxTokens) {
-      context += `**Answer**: ${doc.answer} (Score: ${doc.score})\n\n`;
+      context += `${doc.answer} (Score: ${doc.score})\n\n`;
       tokens += contentTokens;
     } else {
       break;
@@ -164,32 +162,39 @@ function getSummarizedContext(documents, maxTokens = 7000) {
 
   return context;
 }
-
 app.post('/api/chat', async (req, res) => {
   const { query } = req.body;
   let queryEmbedding = null;
   try {
-    const { uniqueResults, queryEmbedding: embedding } = await findRelevantDocuments(query);
+    const { filteredResults, queryEmbedding: embedding } = await findRelevantDocuments(query);
     queryEmbedding = embedding;
-    const context = getSummarizedContext(uniqueResults);
-    logToFile(`Context for chat completion: ${context.substring(0, 500)}...`);
 
-    // If relevant documents are found, use the context to answer the question
-    let reply = context;
-
-    // If no relevant documents are found, return a default message
-    if (!context || context.trim().length === 0) {
-      reply = "I'm sorry, I don't know the answer to that question. Please try to rephrase it. Refer to the below information to see if it helps.";
+    if (filteredResults.length === 0) {
+      res.json({ reply: "I'm sorry, I couldn't find a relevant answer. Please try rephrasing your question." });
+      return;
     }
 
+    const context = getSummarizedContext(filteredResults);
+    logToFile(`Context for chat completion: ${context.substring(0, 500)}...`);
+    const prompt = `You are an assistant to users of the MongoDB Lab Workshop. Answer their questions about the framework in a friendly conversational tone. Format your answers in Markdown. Be concise in your answers. If you do not know the answer to the question based on the information provided, respond: \"I'm sorry, I don't know the answer to that question. Please try to rephrase it. Refer to the below information to see if it helps.\"`;
+
+    const messages = [
+      { role: 'system', content: prompt },
+      { role: 'user', content: query },
+      { role: 'system', content: context }
+    ];
+
+    const reply = await getChatCompletion(messages);
+
     if (debugMode) {
-      res.json({ 
+      res.json({
         reply,
         debugInfo: {
           query,
           queryEmbedding,
-          relevantDocuments: uniqueResults,
-          context
+          relevantDocuments: filteredResults,
+          context,
+          messages
         }
       });
     } else {
@@ -201,6 +206,7 @@ app.post('/api/chat', async (req, res) => {
     res.status(500).json({ error: 'Error processing chat' });
   }
 });
+
 
 // Endpoint to serve the sidebar
 app.get('/api/sidebar', async (req, res) => {
@@ -226,6 +232,20 @@ async function getSidebarConfig() {
     throw new Error('Sidebar configuration file not found');
   }
 }
+
+// Add this route in server.js
+app.get('/api/logs', (req, res) => {
+  const logPath = path.join(__dirname, 'chatbot.log');
+  fs.readFile(logPath, 'utf8', (err, data) => {
+    if (err) {
+      console.error('Error reading log file:', err);
+      res.status(500).json({ logs: 'Error reading log file' });
+    } else {
+      res.json({ logs: data });
+    }
+  });
+});
+
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);

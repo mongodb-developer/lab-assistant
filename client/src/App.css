@@ -169,3 +169,17 @@
 .example-questions a:hover {
   background-color: #f8f9fa;
 }
+
+
+.log-viewer {
+  margin-top: 10px;
+}
+
+.log-content {
+  max-height: 300px;
+  overflow-y: scroll;
+  white-space: pre-wrap;
+  background-color: #f4f4f4;
+  padding: 10px;
+  border: 1px solid #ddd;
+}
