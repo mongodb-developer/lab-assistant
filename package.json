@@ -14,6 +14,7 @@
   "scripts": {
     "start": "concurrently \"npm run start:client\" \"npm run start:server\"",
     "start:client": "npm run --prefix client start",
+    "build:client": "npm run --prefix client build",
     "start:server": "node server/server.js",
     "install:all": "npm install && npm install --prefix client",
     "test": "concurrently \"npm run test:client\" \"npm run test:server\"",
