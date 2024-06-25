@@ -5,7 +5,6 @@ WORKDIR /usr/app
 COPY package.json package-lock.json ./
 RUN npm install
 COPY . .
-RUN npm run build
 
 # Run the web service on container startup.
 CMD ["node", "server/server.js"]
