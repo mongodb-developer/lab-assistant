@@ -25,8 +25,11 @@ const Chatbot = () => {
     setInputValue('');
 
     try {
-      const response = await axios.post(`${process.env.REACT_APP_SERVER_URL}/api/chat`, { query: inputValue });
+      console.log(process.env.REACT_APP_SERVER_URL);
+      const url = `${process.env.REACT_APP_SERVER_URL}/api/chat`;
+      const response = await axios.post(url, { query: inputValue });
       const reply = response.data.reply;
+
       setMessages([...newMessages, { text: reply, isUser: false }]);
     } catch (error) {
       console.error('Error sending message:', error);
@@ -48,13 +51,13 @@ const Chatbot = () => {
       </div>
       <div className="chat-container">
         <div className="example-questions">
-          <a href="#" onClick={() => populateInput('Why does the library application display no books?')}>
+          <a href="/#" onClick={() => populateInput('Why does the library application display no books?')}>
             Why does the library application display no books?
           </a>
-          <a href="#" onClick={() => populateInput("Why can't my application connect to my Atlas Cluster?")}>
+          <a href="/#" onClick={() => populateInput("Why can't my application connect to my Atlas Cluster?")}>
             Why can't my application connect to my Atlas Cluster?
           </a>
-          <a href="#" onClick={() => populateInput('How do I restart codespaces?')}>
+          <a href="/#" onClick={() => populateInput('How do I restart codespaces?')}>
             How do I restart codespaces?
           </a>
         </div>
