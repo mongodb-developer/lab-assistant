@@ -12,15 +12,6 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const debugMode = process.env.DEBUG_MODE === 'true';
-
-// Utility function to log messages to a file
-function logToFile(message) {
-  const logPath = path.join(__dirname, 'chatbot.log');
-  fs.appendFileSync(logPath, `${new Date().toISOString()} - ${message}\n`);
-}
-
 // Verify that all necessary environment variables are loaded
 const requiredEnvVars = ['MONGODB_URI', 'MONGODB_DB', 'MONGODB_COLLECTION', 'OPENAI_API_KEY'];
 requiredEnvVars.forEach((varName) => {
@@ -30,11 +21,14 @@ requiredEnvVars.forEach((varName) => {
   }
 });
 
-// Logging environment variables for debugging
-console.log('MONGODB_URI:', process.env.MONGODB_URI);
-console.log('MONGODB_DB:', process.env.MONGODB_DB);
-console.log('MONGODB_COLLECTION:', process.env.MONGODB_COLLECTION);
-console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY);
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const debugMode = process.env.DEBUG_MODE === 'true';
+
+// Utility function to log messages to a file
+function logToFile(message) {
+  const logPath = path.join(__dirname, 'chatbot.log');
+  fs.appendFileSync(logPath, `${new Date().toISOString()} - ${message}\n`);
+}
 
 async function generateEmbeddings(text) {
   try {
