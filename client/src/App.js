@@ -5,6 +5,13 @@ import remarkGfm from 'remark-gfm';
 import LogViewer from './LogViewer'; // Correct import
 import './Chatbot.css';
 
+
+const apiUrl = process.env.NODE_ENV === 'production' ?
+  'https://lab-assistant-server-rqrmwakhoq-uc.a.run.app' :
+  (process.env.REACT_APP_SERVER_URL || 'http://localhost:3001');
+
+console.log(apiUrl);
+
 const Chatbot = () => {
   const [inputValue, setInputValue] = useState('');
   const [messages, setMessages] = useState([]);
@@ -25,8 +32,7 @@ const Chatbot = () => {
     setInputValue('');
 
     try {
-      console.log(process.env.REACT_APP_SERVER_URL);
-      const url = `${process.env.REACT_APP_SERVER_URL}/api/chat`;
+      const url = `${apiUrl}/api/chat`;
       const response = await axios.post(url, { query: inputValue });
       const reply = response.data.reply;
 

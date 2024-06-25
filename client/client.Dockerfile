@@ -8,8 +8,6 @@ RUN npm install
 
 COPY . .
 
-ENV REACT_APP_SERVER_URL $REACT_APP_SERVER_URL
-
 # Set the environment variable for the application's port
 ENV PORT 3000
 
